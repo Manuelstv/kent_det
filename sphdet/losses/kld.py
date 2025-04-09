@@ -25,19 +25,12 @@ def bfov_to_kent(annotations, epsilon=1e-6):
 
     varphi = (w**2) / 12 + epsilon
     vartheta = (h**2) / 12 + epsilon
-    #vartheta = (torch.deg2rad(data_fov_h) ** 2) / 12 + epsilon
 
     #if vartheta > varphi:
     kappa = 0.5 * (1 / varphi + 1 / vartheta)    
     beta = torch.abs(0.25 * (1 / vartheta - 1 / varphi))
-
-        #max_kappa = 1e3
-        #kappa = torch.clamp(kappa, max=max_kappa)
-        #beta = torch.clamp(beta, max=(kappa / 2.2) - 1e-4)
         
     kent_dist = torch.stack([eta, alpha, kappa, beta, w, h], dim=1)
-
-        #check_nan_inf(kent_dist, "gamma")
         
     return kent_dist
 
@@ -67,42 +60,6 @@ def jiter_spherical_bboxes(bboxes1, bboxes2):
         torch.clamp_(bboxes2[:, 4], -2*pi+2*eps, max=2*pi-eps)
 
     return bboxes1, bboxes2
-
-def normalized_l1_loss(y_true, y_pred, scale_factor=30.0):
-    """
-    Compute normalized L1 loss for 5-tuple where:
-    - First 3 values range from -pi to pi
-    - Last 2 values range from 0 to inf
-    
-    Args:
-        y_pred: torch.Tensor of shape (n, 5) or (5,) - predicted values
-        y_true: torch.Tensor of shape (n, 5) or (5,) - true values
-        scale_factor: float - scaling factor for sigmoid normalization
-    
-    Returns:
-        torch.Tensor: normalized L1 loss
-    """
-    # Ensure inputs are 2D
-    if y_pred.dim() == 1:
-        y_pred = y_pred.unsqueeze(0)
-    if y_true.dim() == 1:
-        y_true = y_true.unsqueeze(0)
-        
-    #print(y_pred, y_true)
-    
-    #y_pred, y_true = jiter_spherical_bboxes(y_pred, y_true)
-    
-    mask = (y_true != 0).any(dim=1)
-    if not mask.any():
-        return torch.tensor(0.0, device=y_pred.device)
-    
-    #pdb.set_trace()
-    pred = torch.stack([y_pred[mask, 0]/360, y_pred[mask, 1]/180, y_pred[mask, 2]/180, y_pred[mask, 3]/180], dim=1)
-    true = torch.stack([y_true[mask, 0]/360, y_true[mask, 1]/180, y_true[mask, 2]/180, y_true[mask, 3]/180], dim=1)
-
-    # Compute L1 loss for the stacked tensors
-    l1_loss = torch.mean(torch.abs(pred - true))  # Calculate the mean L1 loss
-    return l1_loss  # Return the computed L1 loss
 
 def check_nan_inf(tensor: torch.Tensor, name: str):
     """
@@ -152,8 +109,7 @@ def radians_to_Q(eta: torch.Tensor, alpha: torch.Tensor) -> torch.Tensor:
 
 def log_approximate_c(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
 
-    epsilon = 1e-6  # Small value to avoid division by zero
-    
+    epsilon = 1e-6
     term1 = kappa - 2 * beta
     term2 = kappa + 2 * beta
     product = term1 * term2 + epsilon
@@ -174,7 +130,7 @@ def expected_xxT(kappa: torch.Tensor, beta: torch.Tensor, Q_matrix: torch.Tensor
 
     c_kk = log_del_2_kappa(kappa, beta)
     c_beta = log_del_beta(kappa, beta)
-    epsilon = 1e-6  # Small value to avoid division by zero
+    epsilon = 1e-6
 
     lambda_1 = torch.exp(c_k - c)
     lambda_2 = 0.5*(1 - torch.exp(c_kk - c) + torch.exp(c_beta - c))
@@ -249,9 +205,7 @@ def log_del_beta(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     if torch.any(kappa <= 2 * beta):
         raise ValueError("kappa must be greater than 2 * beta to ensure log validity.")
 
-
     epsilon = 1e-6
-    
     numerator = torch.log(torch.tensor(8 * torch.pi, device=kappa.device))+kappa + torch.log(beta+epsilon)
     denominator = 1.5*(torch.log(kappa - 2 * beta) + torch.log(kappa + 2 * beta)) + epsilon
     result = numerator - denominator
@@ -381,7 +335,6 @@ class DecodedKentLoss(nn.Module):
             **kwargs)
         
         return loss
-
 
 @LOSSES.register_module()
 class DecodedKentLogLoss(nn.Module):
@@ -604,7 +557,6 @@ def kld_raw_loss(y_pred, y_true, eps = 1e-6):
         y_pred = y_pred.unsqueeze(0)
     if y_true.dim() == 1:
         y_true = y_true.unsqueeze(0)
-
 
     #kld part. really needs to improve variable names
     pred = y_pred[:, :4].double()
