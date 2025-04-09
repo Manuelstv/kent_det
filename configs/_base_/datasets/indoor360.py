@@ -5,7 +5,7 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='SphResize', img_scale=(1024, 512), keep_ratio=True),
+    dict(type='SphResize', img_scale=(512, 256), keep_ratio=True),
     dict(type='SphRandomFlip', flip_ratio=0.),
     dict(type='Normalize', **img_norm_cfg),
     #dict(type='Pad', size_divisor=32),
@@ -16,7 +16,7 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=(1024, 512),
+        img_scale=(512, 256),
         flip=False,
         transforms=[
             dict(type='SphResize', keep_ratio=True),

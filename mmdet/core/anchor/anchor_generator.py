@@ -393,6 +393,13 @@ class AnchorGenerator:
         all_anchors = all_anchors.view(-1, 4)
         # first A rows correspond to A anchors of (0, 0) in feature map,
         # then (0, 1), (0, 2), ...
+
+        #
+        num_boxes_per_level = featmap_size[0] * featmap_size[1] * num_base_anchors
+        print(num_boxes_per_level)
+        pdb.set_trace
+
+
         return all_anchors
 
     def valid_flags(self, featmap_sizes, pad_shape, device='cuda'):

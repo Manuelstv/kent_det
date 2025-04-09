@@ -17,7 +17,7 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')])
 
 data = dict(
-    samples_per_gpu=4,
+    samples_per_gpu=1,
     workers_per_gpu=0)
 
 checkpoint_config = dict(interval=5)

@@ -245,8 +245,12 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
         anchors = flat_anchors[inside_flags, :]
 
         assign_result = self.assigner.assign(
-            anchors, gt_bboxes, gt_bboxes_ignore,
-            None if self.sampling else gt_labels)
+            anchors = anchors, 
+            num_level_bboxes = num_level_bboxes,
+            gt_bboxes = gt_bboxes, 
+            gt_bboxes_ignore = gt_bboxes_ignore,
+            gt_labels = None if self.sampling else gt_labels)
+        
         sampling_result = self.sampler.sample(assign_result, anchors,
                                               gt_bboxes)
 

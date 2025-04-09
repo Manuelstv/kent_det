@@ -46,10 +46,11 @@ model = dict(
         loss_bbox=dict(type='L1Loss', loss_weight=1.0)),
     train_cfg=dict(
         assigner=dict(
-            type='MaxIoUAssigner',
-            pos_iou_thr=0.5,
-            neg_iou_thr=0.4,
-            min_pos_iou=0,
+            type='ATSSAssigner',
+            topk = 9,
+            #pos_iou_thr=0.5,
+            #neg_iou_thr=0.4,
+            #min_pos_iou=0,
             ignore_iof_thr=-1,
             iou_calculator=dict(
                 type='SphOverlaps2D',
