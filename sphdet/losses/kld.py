@@ -20,11 +20,11 @@ def bfov_to_kent(annotations, epsilon=1e-6):
     eta = 2*np.pi*data_x
     alpha = np.pi * data_y
 
-    h = torch.sin(alpha)*torch.deg2rad(data_fov_w)
-    w = torch.deg2rad(data_fov_h)
+    w = torch.sin(alpha)*torch.deg2rad(data_fov_w)
+    h = torch.deg2rad(data_fov_h)
 
-    varphi = (w**2) / 12 + epsilon
-    vartheta = (h**2) / 12 + epsilon
+    varphi = (h**2) / 12 + epsilon
+    vartheta = (w**2) / 12 + epsilon
 
     #if vartheta > varphi:
     kappa = 0.5 * (1 / varphi + 1 / vartheta)    
@@ -567,7 +567,7 @@ def kld_raw_loss(y_pred, y_true, eps = 1e-6):
     kld_tp = torch.clamp(kld_tp, min =0)
     jsd = (kld_pt+kld_tp)/2
     const = 1.
-    jsd_iou = 1 / (const + (1+jsd))  
+    jsd_iou = 1 / (const + jsd)  
 
     #eta, alpha, kappa, beta
     #arctan_pred = torch.atan(torch.sqrt(y_pred[:,2]-2*y_pred[:,3])/(y_pred[:,2]+2*y_pred[:,3]))
