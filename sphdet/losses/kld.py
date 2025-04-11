@@ -10,13 +10,13 @@ def bfov_to_kent(annotations, epsilon=1e-6):
     if annotations.ndim == 1:
         annotations = annotations.unsqueeze(0)
 
-    data_x = annotations[:, 0] / 360.0 
+    data_x = annotations[:, 0] / 360.0
     data_y = annotations[:, 1] / 180.0
 
     #α ∈ [0, π] and η ∈ [0, 2π] be the co-latitude and longitude
     data_fov_w = annotations[:, 2]
     data_fov_h = annotations[:, 3]
-        
+
     eta = 2*np.pi*data_x
     alpha = np.pi * data_y
 
@@ -27,11 +27,11 @@ def bfov_to_kent(annotations, epsilon=1e-6):
     vartheta = (w**2) / 12 + epsilon
 
     #if vartheta > varphi:
-    kappa = 0.5 * (1 / varphi + 1 / vartheta)    
+    kappa = 0.5 * (1 / varphi + 1 / vartheta)
     beta = torch.abs(0.25 * (1 / vartheta - 1 / varphi))
-        
+
     kent_dist = torch.stack([eta, alpha, kappa, beta, w, h], dim=1)
-        
+
     return kent_dist
 
 class SphBox2KentTransform:
@@ -39,7 +39,7 @@ class SphBox2KentTransform:
         self.transform = _sph_box2kent_transform
     def __call__(self, boxes):
         return self.transform(boxes)
-    
+
 def _sph_box2kent_transform(boxes):
     return bfov_to_kent(boxes)
 
@@ -64,7 +64,7 @@ def jiter_spherical_bboxes(bboxes1, bboxes2):
 def check_nan_inf(tensor: torch.Tensor, name: str):
     """
     Check for NaN and Inf values in a tensor.
-    
+
     Args:
         tensor (torch.Tensor): The tensor to check.
         name (str): The name of the tensor for error reporting.
@@ -84,7 +84,7 @@ def radians_to_Q(eta: torch.Tensor, alpha: torch.Tensor) -> torch.Tensor:
     N = alpha.size(0)
     alpha = alpha.view(N, 1)
     eta = eta.view(N, 1)
-    
+
     gamma_1 = torch.cat([
         torch.cos(alpha),
         torch.sin(alpha) * torch.cos(eta),
@@ -113,9 +113,9 @@ def log_approximate_c(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     term1 = kappa - 2 * beta
     term2 = kappa + 2 * beta
     product = term1 * term2 + epsilon
-    
+
     log_result = torch.log(torch.tensor(2 * torch.pi, device=kappa.device)) + kappa - 0.5 * torch.log(product)
-    
+
     check_nan_inf(log_result, "approximate_c")
     return log_result
 
@@ -153,50 +153,50 @@ def beta_gamma_exxt_gamma(beta: torch.Tensor, gamma: torch.Tensor, ExxT: torch.T
     check_nan_inf(result, "beta_gamma_exxt_gamma")
     return result
 
-def calculate_kappa_term(kappa_a, gamma_a1, kappa_b, gamma_b1, Ex_a): 
+def calculate_kappa_term(kappa_a, gamma_a1, kappa_b, gamma_b1, Ex_a):
     kappa_a_gamma_a1 = kappa_a.view(-1, 1) * gamma_a1
     kappa_b_gamma_b1 = kappa_b.view(-1, 1) * gamma_b1
     diff_kappa_term_diag = kappa_a_gamma_a1 - kappa_b_gamma_b1
-    result_diag = torch.sum(diff_kappa_term_diag*(Ex_a), dim=1)   
-    
+    result_diag = torch.sum(diff_kappa_term_diag*(Ex_a), dim=1)
+
     return result_diag
 
 def log_del_kappa(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
-    epsilon = 1e-6    
+    epsilon = 1e-6
     argument_numerator = torch.clamp(2 * torch.pi * (kappa**2 - kappa - 4 * beta**2), min =0)
     numerator = torch.log(argument_numerator + epsilon) + kappa
-    
+
     argument_denominator = torch.clamp((kappa - 2 * beta) * (kappa + 2 * beta), min =0)
     denominator = 1.5 * torch.log(argument_denominator + epsilon)
-    
+
     result = numerator - denominator
-    
+
     check_nan_inf(result, "del_kappa")
     return result
 
 def log_del_2_kappa(kappa: torch.Tensor, beta: torch.Tensor) -> torch.Tensor:
     epsilon = 1e-6
-    
+
     polynomial_term = kappa**4 - 2 * kappa**3 + \
                      (2 - 8 * beta**2) * kappa**2 + \
                      8 * beta**2 * kappa + \
                      16 * beta**4 + 4 * beta**2
-    
+
     log_numerator_inner = 2 * torch.pi * polynomial_term
     log_numerator_inner = torch.clamp(log_numerator_inner, min=epsilon)
-    
+
     kappa_minus_2beta = kappa - 2 * beta
     kappa_plus_2beta = kappa + 2 * beta
-    
+
     kappa_minus_2beta_safe = torch.clamp(kappa_minus_2beta, min=epsilon)
     kappa_plus_2beta_safe = torch.clamp(kappa_plus_2beta, min=epsilon)
-    
+
     numerator = torch.log(log_numerator_inner) + kappa
-    denominator = 2.5 * (torch.log(kappa_minus_2beta_safe) + 
+    denominator = 2.5 * (torch.log(kappa_minus_2beta_safe) +
                         torch.log(kappa_plus_2beta_safe)) + epsilon
-    
+
     result = numerator - denominator
-    
+
     check_nan_inf(result, "del_2_kappa")
     return result
 
@@ -221,7 +221,7 @@ def calculate_beta_term(beta_a: torch.Tensor, gamma_a2: torch.Tensor, beta_b: to
     beta_b_gamma_b2 = beta_b.view(-1, 1) * gamma_b2
     product_diag = ExxT_a * beta_b_gamma_b2.unsqueeze(1)
     result_diag = product_diag.sum(dim=-1)
-    
+
     gamma_b2_expanded = gamma_b2.unsqueeze(0)
     beta_b_term_1 = torch.sum(result_diag * gamma_b2_expanded, dim=-1)
 
@@ -306,7 +306,7 @@ class DecodedKentLoss(nn.Module):
                 avg_factor=None,
                 reduction_override=None,
                 **kwargs):
-      
+
         if weight is not None and not torch.any(weight > 0):
             if pred.dim() == weight.dim() + 1:
                 weight = weight.unsqueeze(1)
@@ -317,10 +317,10 @@ class DecodedKentLoss(nn.Module):
         if weight is not None and weight.dim() > 1:
             # TODO: remove this in the future
             # reduce the weight of shape (n, 4) to (n,) to match the
-            # giou_loss of shape (n,) 
+            # giou_loss of shape (n,)
             assert weight.shape == pred.shape
-            weight = weight.mean(-1)  
-        
+            weight = weight.mean(-1)
+
         pred, target = jiter_spherical_bboxes(pred, target)
 
         kent_pred = self.transform(pred)
@@ -333,7 +333,7 @@ class DecodedKentLoss(nn.Module):
             reduction=reduction,
             avg_factor=avg_factor,
             **kwargs)
-        
+
         return loss
 
 @LOSSES.register_module()
@@ -354,7 +354,7 @@ class DecodedKentLogLoss(nn.Module):
                 avg_factor=None,
                 reduction_override=None,
                 **kwargs):
-      
+
         if weight is not None and not torch.any(weight > 0):
             if pred.dim() == weight.dim() + 1:
                 weight = weight.unsqueeze(1)
@@ -365,10 +365,10 @@ class DecodedKentLogLoss(nn.Module):
         if weight is not None and weight.dim() > 1:
             # TODO: remove this in the future
             # reduce the weight of shape (n, 4) to (n,) to match the
-            # giou_loss of shape (n,) 
+            # giou_loss of shape (n,)
             assert weight.shape == pred.shape
-            weight = weight.mean(-1)  
-        
+            weight = weight.mean(-1)
+
         pred, target = jiter_spherical_bboxes(pred, target)
 
         kent_pred = self.transform(pred)
@@ -381,7 +381,7 @@ class DecodedKentLogLoss(nn.Module):
             reduction=reduction,
             avg_factor=avg_factor,
             **kwargs)
-        
+
         return loss
 
 @LOSSES.register_module()
@@ -402,7 +402,7 @@ class DecodedKentSqrtLoss(nn.Module):
                 avg_factor=None,
                 reduction_override=None,
                 **kwargs):
-      
+
         if weight is not None and not torch.any(weight > 0):
             if pred.dim() == weight.dim() + 1:
                 weight = weight.unsqueeze(1)
@@ -413,10 +413,10 @@ class DecodedKentSqrtLoss(nn.Module):
         if weight is not None and weight.dim() > 1:
             # TODO: remove this in the future
             # reduce the weight of shape (n, 4) to (n,) to match the
-            # giou_loss of shape (n,) 
+            # giou_loss of shape (n,)
             assert weight.shape == pred.shape
-            weight = weight.mean(-1)  
-        
+            weight = weight.mean(-1)
+
         pred, target = jiter_spherical_bboxes(pred, target)
 
         kent_pred = self.transform(pred)
@@ -429,7 +429,7 @@ class DecodedKentSqrtLoss(nn.Module):
             reduction=reduction,
             avg_factor=avg_factor,
             **kwargs)
-        
+
         return loss
 
 @LOSSES.register_module()
@@ -450,7 +450,7 @@ class DecodedKentRawLoss(nn.Module):
                 avg_factor=None,
                 reduction_override=None,
                 **kwargs):
-      
+
         if weight is not None and not torch.any(weight > 0):
             if pred.dim() == weight.dim() + 1:
                 weight = weight.unsqueeze(1)
@@ -461,23 +461,23 @@ class DecodedKentRawLoss(nn.Module):
         if weight is not None and weight.dim() > 1:
             # TODO: remove this in the future
             # reduce the weight of shape (n, 4) to (n,) to match the
-            # giou_loss of shape (n,) 
+            # giou_loss of shape (n,)
             assert weight.shape == pred.shape
-            weight = weight.mean(-1)  
-        
+            weight = weight.mean(-1)
+
         pred, target = jiter_spherical_bboxes(pred, target)
 
         kent_pred = self.transform(pred)
         kent_target = self.transform(target)
 
         loss = self.loss_weight * kld_raw_loss(
-            kent_target,
             kent_pred,
+            kent_target,
             weight,
             reduction=reduction,
             avg_factor=avg_factor,
             **kwargs)
-        
+
         return loss
 
 
@@ -497,7 +497,7 @@ def kld_loss(y_pred, y_true, eps = 1e-6):
 
     jsd = (kld_pt+kld_tp)/2
 
-    const = 1.  
+    const = 1.
     kld_loss = 1 - 1 / (const + jsd)
 
     return kld_loss
@@ -521,7 +521,7 @@ def kld_log_loss(y_pred, y_true, eps = 1e-6):
 
     jsd = (kld_pt+kld_tp)/2
 
-    const = 1.  
+    const = 1.
     kld_loss = 1 - 1 / (const + torch.log(1+jsd))
 
     return kld_loss
@@ -545,7 +545,7 @@ def kld_sqrt_loss(y_pred, y_true, eps = 1e-6):
 
     jsd = (kld_pt+kld_tp)/2
 
-    const = 1.  
+    const = 1.
     kld_loss = 1 - 1 / (const + torch.sqrt(jsd))
 
     return kld_loss
@@ -567,7 +567,7 @@ def kld_raw_loss(y_pred, y_true, eps = 1e-6):
     kld_tp = torch.clamp(kld_tp, min =0)
     jsd = (kld_pt+kld_tp)/2
     const = 1.
-    jsd_iou = 1 / (const + jsd)  
+    jsd_iou = 1 / (const + jsd)
 
     #eta, alpha, kappa, beta
     #arctan_pred = torch.atan(torch.sqrt(y_pred[:,2]-2*y_pred[:,3])/(y_pred[:,2]+2*y_pred[:,3]))
@@ -576,13 +576,12 @@ def kld_raw_loss(y_pred, y_true, eps = 1e-6):
     arctan_pred = torch.atan(y_pred[:, 4]/y_pred[:, 5])
     arctan_true = torch.atan(y_true[:, 4]/y_true[:, 5])
 
-    v = (4 / (torch.pi ** 2)) * ((arctan_true - arctan_pred) ** 2) 
+    v = (4 / (torch.pi ** 2)) * ((arctan_true - arctan_pred) ** 2)
     alpha = v / (1 - jsd_iou + v)
 
     kld_loss = 1 - jsd_iou + alpha*v
     return kld_loss
 
-    
 if __name__ == "__main__":
     pred = torch.tensor([[  2.2335,   1.7491, 331.7626, 146.6469]], dtype=torch.float32, requires_grad=True)#.half()
     target = torch.tensor([[5.4978, 2.3562, 1.2747, 0.4459]], dtype=torch.float32, requires_grad=True)#.half()
