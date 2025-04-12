@@ -189,6 +189,7 @@ class AnchorGenerator:
             x_center - 0.5 * ws, y_center - 0.5 * hs, x_center + 0.5 * ws,
             y_center + 0.5 * hs
         ]
+        #pdb.set_trace()
         base_anchors = torch.stack(base_anchors, dim=-1)
 
         return base_anchors
@@ -268,6 +269,7 @@ class AnchorGenerator:
         shift_x = torch.arange(0, feat_w, device=device).to(dtype) * stride_w
         shift_y = torch.arange(0, feat_h, device=device).to(dtype) * stride_h
 
+        #num_boxes_per_level = feat_h * feat_w * base_anchors.shape[0]
         #pdb.set_trace()
 
         shift_xx, shift_yy = self._meshgrid(shift_x, shift_y)
@@ -348,6 +350,8 @@ class AnchorGenerator:
                 self.strides[i],
                 device=device)
             multi_level_anchors.append(anchors)
+        
+        pdb.set_trace()
         return multi_level_anchors
 
     def single_level_grid_anchors(self,
@@ -396,6 +400,7 @@ class AnchorGenerator:
 
         #
         num_boxes_per_level = featmap_size[0] * featmap_size[1] * num_base_anchors
+        pdb.set_trace()
         print(num_boxes_per_level)
         pdb.set_trace
 

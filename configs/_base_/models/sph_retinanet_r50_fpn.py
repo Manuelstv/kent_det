@@ -48,6 +48,7 @@ model = dict(
         assigner=dict(
             type='ATSSAssigner',
             topk = 9,
+            #type = 'MaxIoUAssigner',
             #pos_iou_thr=0.5,
             #neg_iou_thr=0.4,
             #min_pos_iou=0,
