@@ -99,10 +99,13 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
     #kld part. really needs to improve variable names
     pred = y_pred[:, :4].double()
     true = y_true[:, :4].double()
+
     kld_pt = get_kld(pred, true)
     kld_tp = get_kld(true, pred)
+
     kld_pt = torch.clamp(kld_pt, min =0)
     kld_tp = torch.clamp(kld_tp, min =0)
+
     jsd = (kld_pt+kld_tp)/2
     const = 1.
     jsd_iou = 1 / (const + jsd)
@@ -113,7 +116,7 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
     factor = 4 / torch.pi ** 2
 
     v = factor * torch.pow(torch.atan(w2 / (h2+eps)) - torch.atan(w1 / (h1+eps)), 2)
-    
+
     #Should we use masking like sph2pob?
     with torch.no_grad():
         alpha = v / (1 - jsd_iou + v + eps)
