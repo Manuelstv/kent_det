@@ -7,6 +7,7 @@ from ..builder import BBOX_ASSIGNERS
 from ..iou_calculators import build_iou_calculator
 from .assign_result import AssignResult
 from .base_assigner import BaseAssigner
+import pdb
 
 
 @BBOX_ASSIGNERS.register_module()
@@ -102,6 +103,8 @@ class ATSSAssigner(BaseAssigner):
                   'bbox_preds are None. If you want to use the ' \
                   'cost-based ATSSAssigner,  please set cls_scores, ' \
                   'bbox_preds and self.alpha at the same time. '
+    
+        #pdb.set_trace()
 
         if self.alpha is None:
             # ATSSAssigner
@@ -145,12 +148,12 @@ class ATSSAssigner(BaseAssigner):
                 num_gt, assigned_gt_inds, max_overlaps, labels=assigned_labels)
 
         # compute center distance between all bbox and gt
-        gt_cx = (gt_bboxes[:, 0] + gt_bboxes[:, 2]) / 2.0
-        gt_cy = (gt_bboxes[:, 1] + gt_bboxes[:, 3]) / 2.0
+        gt_cx = gt_bboxes[:, 0] #+ gt_bboxes[:, 2]) / 2.0
+        gt_cy = gt_bboxes[:, 1] #+ gt_bboxes[:, 3]) / 2.0
         gt_points = torch.stack((gt_cx, gt_cy), dim=1)
 
-        bboxes_cx = (bboxes[:, 0] + bboxes[:, 2]) / 2.0
-        bboxes_cy = (bboxes[:, 1] + bboxes[:, 3]) / 2.0
+        bboxes_cx = bboxes[:, 0]# + bboxes[:, 2]) / 2.0
+        bboxes_cy = bboxes[:, 1]# + bboxes[:, 3]) / 2.0
         bboxes_points = torch.stack((bboxes_cx, bboxes_cy), dim=1)
 
         distances = (bboxes_points[:, None, :] -
@@ -201,10 +204,31 @@ class ATSSAssigner(BaseAssigner):
 
         # calculate the left, top, right, bottom distance between positive
         # bbox center and gt side
-        l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 0]
+        '''l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 0]
         t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 1]
         r_ = gt_bboxes[:, 2] - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)
         b_ = gt_bboxes[:, 3] - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)
+        is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
+        '''
+        
+        gt_cx = gt_bboxes[:, 0]  # center x
+        gt_cy = gt_bboxes[:, 1]  # center y
+        gt_w = gt_bboxes[:, 2]   # width
+        gt_h = gt_bboxes[:, 3]   # height
+
+        # Convert (x, y, w, h) to (x1, y1, x2, y2) format
+        gt_x1 = gt_cx - gt_w / 2  # left
+        gt_y1 = gt_cy - gt_h / 2  # top
+        gt_x2 = gt_cx + gt_w / 2  # right
+        gt_y2 = gt_cy + gt_h / 2  # bottom
+
+        # Calculate distances from predicted bbox centers to gt sides
+        l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_x1  # distance to left edge
+        t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_y1  # distance to top edge
+        r_ = gt_x2 - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)  # distance to right edge
+        b_ = gt_y2 - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)  # distance to bottom edge
+
+        # Check if the predicted center is inside the gt bbox (with a small margin 0.01)
         is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
 
         is_pos = is_pos & is_in_gts

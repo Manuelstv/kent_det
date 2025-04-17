@@ -6,19 +6,19 @@ _base_ = [
     '../_base_/models/sph_retinanet_r50_fpn.py',
 ]
 
-optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=5, norm_type=2))
+optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=10, norm_type=2))
 
 #load_from = 'work_dirs/kent_retinanet/best_bbox_mAP_50_epoch_55.pth'
 
 log_config = dict(
-    interval=100,
+    interval=50,
     hooks=[
         dict(type='TextLoggerHook'),
         dict(type='TensorboardLoggerHook')])
 
 data = dict(
-    samples_per_gpu=4,
-    workers_per_gpu=0)
+    samples_per_gpu=32,
+    workers_per_gpu=1)
 
 checkpoint_config = dict(interval=5)
 evaluation = dict(interval=5)
@@ -34,7 +34,7 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='KentLoss', loss_weight=1.0)),
+        loss_bbox=dict(type='Sph2PobIoULoss', loss_weight=1.0)),
     train_cfg=dict(
         assigner=dict(
             iou_calculator=dict(
