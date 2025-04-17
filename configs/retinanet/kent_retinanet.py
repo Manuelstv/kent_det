@@ -8,6 +8,10 @@ _base_ = [
 
 optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=5, norm_type=2))
 
+custom_hooks = [
+    dict(
+        type='GradientNormHook'    )]
+
 #load_from = 'work_dirs/kent_retinanet/best_bbox_mAP_50_epoch_55.pth'
 
 log_config = dict(
