@@ -10,6 +10,45 @@ from .base_assigner import BaseAssigner
 import pdb
 
 
+
+import torch
+
+def haversine_distance(theta1_deg, phi1_deg, theta2_deg, phi2_deg, r=1.0):
+    """
+    Vectorized Haversine distance between point sets with inputs in degrees.
+
+    Args:
+        theta1_deg, phi1_deg: Longitude [0,360] and latitude [0,180] of point set 1 (degrees), shape [N] or [N,1]
+        theta2_deg, phi2_deg: Longitude [0,360] and latitude [0,180] of point set 2 (degrees), shape [M] or [1,M]
+        r: Sphere radius (set to 1 for angular distance)
+
+    Returns:
+        Distance matrix of shape [N,M]
+    """
+    # Convert degrees to radians and adjust latitude range from [0,180] to [-90,90]
+    theta1 = torch.deg2rad(theta1_deg -180)
+    phi1 = torch.deg2rad(phi1_deg - 90)  # Shift [0,180] to [-90,90]
+
+    theta2 = torch.deg2rad(theta2_deg - 180)
+    phi2 = torch.deg2rad(phi2_deg - 90)  # Shift [0,180] to [-90,90]
+
+    # Expand dimensions for broadcasting
+    theta1 = theta1.unsqueeze(1)  # [N,1]
+    phi1 = phi1.unsqueeze(1)      # [N,1]
+    theta2 = theta2.unsqueeze(0)  # [1,M]
+    phi2 = phi2.unsqueeze(0)      # [1,M]
+
+    # Handle longitude periodicity (wraps within [−π, π])
+    delta_theta = torch.remainder(theta1 - theta2 + torch.pi, 2 * torch.pi) - torch.pi
+
+    # Haversine formula
+    a = (
+        torch.sin((phi1 - phi2) / 2)**2
+        + torch.cos(phi1) * torch.cos(phi2) * torch.sin(delta_theta / 2)**2
+    )
+    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+    return r * c
+
 @BBOX_ASSIGNERS.register_module()
 class ATSSAssigner(BaseAssigner):
     """Assign a corresponding gt bbox or background to each bbox.
@@ -150,14 +189,18 @@ class ATSSAssigner(BaseAssigner):
         # compute center distance between all bbox and gt
         gt_cx = gt_bboxes[:, 0] #+ gt_bboxes[:, 2]) / 2.0
         gt_cy = gt_bboxes[:, 1] #+ gt_bboxes[:, 3]) / 2.0
-        gt_points = torch.stack((gt_cx, gt_cy), dim=1)
+        #gt_points = torch.stack((gt_cx, gt_cy), dim=1)
 
         bboxes_cx = bboxes[:, 0]# + bboxes[:, 2]) / 2.0
         bboxes_cy = bboxes[:, 1]# + bboxes[:, 3]) / 2.0
-        bboxes_points = torch.stack((bboxes_cx, bboxes_cy), dim=1)
+        #bboxes_points = torch.stack((bboxes_cx, bboxes_cy), dim=1)
 
-        distances = (bboxes_points[:, None, :] -
-                     gt_points[None, :, :]).pow(2).sum(-1).sqrt()
+        #distances_old = (bboxes_points[:, None, :] -
+        #             gt_points[None, :, :]).pow(2).sum(-1).sqrt()
+
+        distances = haversine_distance(gt_cx, gt_cy, bboxes_cx, bboxes_cy).T
+
+        #pdb.set_trace()
 
         if (self.ignore_iof_thr > 0 and gt_bboxes_ignore is not None
                 and gt_bboxes_ignore.numel() > 0 and bboxes.numel() > 0):
