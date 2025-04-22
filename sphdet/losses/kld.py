@@ -18,11 +18,11 @@ def bfov_to_kent(annotations, epsilon=1e-6):
     fov_theta = annotations[:, 2]
     fov_phi = annotations[:, 3]
 
-    w = torch.sin(alpha)*torch.deg2rad(fov_theta)
+    w = torch.deg2rad(fov_theta)
     h = torch.deg2rad(fov_phi)
 
     varphi = (h**2) / 12 + epsilon
-    vartheta = (w**2) / 12 + epsilon
+    vartheta = torch.sin(alpha)*(w**2) / 12 + epsilon
 
     kappa = 0.5 * (1 / varphi + 1 / vartheta)
     beta = torch.abs(0.25 * (1 / vartheta - 1 / varphi))
