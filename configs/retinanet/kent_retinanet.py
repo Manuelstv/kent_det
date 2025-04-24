@@ -6,7 +6,7 @@ _base_ = [
     '../_base_/models/sph_retinanet_r50_fpn.py',
 ]
 
-#optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=5, norm_type=2))
+optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=5, norm_type=2))
 
 custom_hooks = [
     dict(type='GradientNormHook')]

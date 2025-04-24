@@ -18,11 +18,11 @@ def bfov_to_kent(annotations, epsilon=1e-6):
     fov_theta = annotations[:, 2]
     fov_phi = annotations[:, 3]
 
-    w = torch.deg2rad(fov_theta)
+    w = torch.sin(alpha)*torch.deg2rad(fov_theta)
     h = torch.deg2rad(fov_phi)
 
     varphi = (h**2) / 12 + epsilon
-    vartheta = torch.sin(alpha)*(w**2) / 12 + epsilon
+    vartheta = (w**2) / 12 + epsilon
 
     kappa = 0.5 * (1 / varphi + 1 / vartheta)
     beta = torch.abs(0.25 * (1 / vartheta - 1 / varphi))
@@ -115,7 +115,7 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
 
     factor = 4 / torch.pi ** 2
 
-    v = factor * torch.pow(torch.atan(w2 / (h2+eps)) - torch.atan(w1 / (h1+eps)), 2)
+    v = factor * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
 
     #Should we use masking like sph2pob?
     with torch.no_grad():
