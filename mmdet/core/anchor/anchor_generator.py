@@ -237,7 +237,6 @@ class AnchorGenerator:
             anchors = self.single_level_grid_priors(
                 featmap_sizes[i], level_idx=i, dtype=dtype, device=device)
             multi_level_anchors.append(anchors)
-        #pdb.set_trace()
 
         return multi_level_anchors
 

@@ -115,7 +115,7 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
 
     factor = 4 / torch.pi ** 2
 
-    v = factor * torch.pow(torch.atan(w2 / (h2+eps)) - torch.atan(w1 / (h1+eps)), 2)
+    v = factor * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
 
     #Should we use masking like sph2pob?
     with torch.no_grad():
