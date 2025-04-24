@@ -10,42 +10,24 @@ def bfov_to_kent(annotations, epsilon=1e-6):
     if annotations.ndim == 1:
         annotations = annotations.unsqueeze(0)
 
-    data_x = annotations[:, 0] / 360.0 
+    data_x = annotations[:, 0] / 360.0
     data_y = annotations[:, 1] / 180.0
 
     #α ∈ [0, π] and η ∈ [0, 2π] be the co-latitude and longitude
     data_fov_h = annotations[:, 2]
     data_fov_v = annotations[:, 3]
-        
+
     eta = 2*np.pi*data_x
     alpha = np.pi * data_y
 
     varphi = (torch.deg2rad(data_fov_v) ** 2) / 12 + epsilon
     vartheta = torch.sin(alpha)*(torch.deg2rad(data_fov_h) ** 2) / 12 + epsilon
-    
-    
-    
-    #heta_a = torch.deg2rad(torch.tensor(data_fov_h))  # Horizontal FOV (theta spread)
-    #phi_a = torch.deg2rad(torch.tensor(data_fov_v))    # Vertical FOV (phi spread)
 
-    #3 Compute circular variance for theta and phi
-    #vartheta = 1 - torch.sin(theta_a / 2) / (theta_a / 2)  # Circular variance for theta
-    #varphi = torch.sin(alpha)*(1 - torch.sin(phi_a / 2) / (phi_a / 2))    # Circular variance for phi
-
-    #print(varphi_a-varphi, vartheta_a - vartheta)
-
-    #if vartheta > varphi:
-    kappa = 0.5 * (1 / varphi + 1 / vartheta)    
+    kappa = 0.5 * (1 / varphi + 1 / vartheta)
     beta = torch.abs(0.25 * (1 / vartheta - 1 / varphi))
 
-        #max_kappa = 1e3
-        #kappa = torch.clamp(kappa, max=max_kappa)
-        #beta = torch.clamp(beta, max=(kappa / 2.2) - 1e-4)
-        
     kent_dist = torch.stack([eta, alpha, kappa, beta], dim=1)
 
-        #check_nan_inf(kent_dist, "gamma")
-        
     return kent_dist
 
 class SphBox2KentTransform:

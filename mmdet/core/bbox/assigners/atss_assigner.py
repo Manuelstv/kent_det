@@ -7,34 +7,47 @@ from ..builder import BBOX_ASSIGNERS
 from ..iou_calculators import build_iou_calculator
 from .assign_result import AssignResult
 from .base_assigner import BaseAssigner
+import pdb
 
-def haversine_distance_vectorized(θ1, φ1, θ2, φ2, r=1.0):
+
+
+import torch
+
+def haversine_distance(theta1_deg, phi1_deg, theta2_deg, phi2_deg, r=1.0):
     """
-    Vectorized Haversine distance between point sets.
+    Vectorized Haversine distance between point sets with inputs in degrees.
+
     Args:
-        θ1, φ1: Longitude/latitude of point set 1 (radians), shape [N] or [N,1]
-        θ2, φ2: Longitude/latitude of point set 2 (radians), shape [M] or [1,M]
+        theta1_deg, phi1_deg: Longitude [0,360] and latitude [0,180] of point set 1 (degrees), shape [N] or [N,1]
+        theta2_deg, phi2_deg: Longitude [0,360] and latitude [0,180] of point set 2 (degrees), shape [M] or [1,M]
         r: Sphere radius (set to 1 for angular distance)
+
     Returns:
         Distance matrix of shape [N,M]
     """
+    # Convert degrees to radians and adjust latitude range from [0,180] to [-90,90]
+    theta1 = torch.deg2rad(theta1_deg -180)
+    phi1 = torch.deg2rad(phi1_deg - 90)  # Shift [0,180] to [-90,90]
+
+    theta2 = torch.deg2rad(theta2_deg - 180)
+    phi2 = torch.deg2rad(phi2_deg - 90)  # Shift [0,180] to [-90,90]
+
     # Expand dimensions for broadcasting
-    θ1 = θ1.unsqueeze(1)  # [N,1]
-    φ1 = φ1.unsqueeze(1)  # [N,1]
-    θ2 = θ2.unsqueeze(0)  # [1,M]
-    φ2 = φ2.unsqueeze(0)  # [1,M]
-    
-    # Handle longitude periodicity (shortest path)
-    Δθ = torch.remainder((θ1 - θ2 + torch.pi), 2 * torch.pi) - torch.pi
-    
+    theta1 = theta1.unsqueeze(1)  # [N,1]
+    phi1 = phi1.unsqueeze(1)      # [N,1]
+    theta2 = theta2.unsqueeze(0)  # [1,M]
+    phi2 = phi2.unsqueeze(0)      # [1,M]
+
+    # Handle longitude periodicity (wraps within [−π, π])
+    delta_theta = torch.remainder(theta1 - theta2 + torch.pi, 2 * torch.pi) - torch.pi
+
     # Haversine formula
     a = (
-        torch.sin((φ1 - φ2)/2)**2 
-        + torch.cos(φ1) * torch.cos(φ2) * torch.sin(Δθ/2)**2
+        torch.sin((phi1 - phi2) / 2)**2
+        + torch.cos(phi1) * torch.cos(phi2) * torch.sin(delta_theta / 2)**2
     )
     c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
     return r * c
-
 
 @BBOX_ASSIGNERS.register_module()
 class ATSSAssigner(BaseAssigner):
@@ -129,6 +142,8 @@ class ATSSAssigner(BaseAssigner):
                   'bbox_preds are None. If you want to use the ' \
                   'cost-based ATSSAssigner,  please set cls_scores, ' \
                   'bbox_preds and self.alpha at the same time. '
+    
+        #pdb.set_trace()
 
         if self.alpha is None:
             # ATSSAssigner
@@ -172,19 +187,20 @@ class ATSSAssigner(BaseAssigner):
                 num_gt, assigned_gt_inds, max_overlaps, labels=assigned_labels)
 
         # compute center distance between all bbox and gt
-        gt_lons = gt_bboxes[:, 0]  # [num_gts]
-        gt_lats = gt_bboxes[:, 1]  # [num_gts]
+        gt_cx = gt_bboxes[:, 0] #+ gt_bboxes[:, 2]) / 2.0
+        gt_cy = gt_bboxes[:, 1] #+ gt_bboxes[:, 3]) / 2.0
+        #gt_points = torch.stack((gt_cx, gt_cy), dim=1)
 
-        bbox_lons = bboxes[:, 0]    # [num_bboxes]
-        bbox_lats = bboxes[:, 1]    # [num_bboxes]
+        bboxes_cx = bboxes[:, 0]# + bboxes[:, 2]) / 2.0
+        bboxes_cy = bboxes[:, 1]# + bboxes[:, 3]) / 2.0
+        #bboxes_points = torch.stack((bboxes_cx, bboxes_cy), dim=1)
 
-        # Compute all pairwise distances [num_bboxes, num_gts]
-        distances = haversine_distance_vectorized(
-            θ1=bbox_lons, 
-            φ1=bbox_lats,
-            θ2=gt_lons,
-            φ2=gt_lats
-        )
+        #distances_old = (bboxes_points[:, None, :] -
+        #             gt_points[None, :, :]).pow(2).sum(-1).sqrt()
+
+        distances = haversine_distance(gt_cx, gt_cy, bboxes_cx, bboxes_cy).T
+
+        #pdb.set_trace()
 
         if (self.ignore_iof_thr > 0 and gt_bboxes_ignore is not None
                 and gt_bboxes_ignore.numel() > 0 and bboxes.numel() > 0):
@@ -231,12 +247,13 @@ class ATSSAssigner(BaseAssigner):
 
         # calculate the left, top, right, bottom distance between positive
         # bbox center and gt side
-        #l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 0]
-        #t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 1]
-        #r_ = gt_bboxes[:, 2] - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)
-        #b_ = gt_bboxes[:, 3] - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)
-
-
+        '''l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 0]
+        t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 1]
+        r_ = gt_bboxes[:, 2] - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)
+        b_ = gt_bboxes[:, 3] - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)
+        is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
+        '''
+        
         gt_cx = gt_bboxes[:, 0]  # center x
         gt_cy = gt_bboxes[:, 1]  # center y
         gt_w = gt_bboxes[:, 2]   # width

@@ -17,8 +17,8 @@ log_config = dict(
         dict(type='TensorboardLoggerHook')])
 
 data = dict(
-    samples_per_gpu=16,
-    workers_per_gpu=0)
+    samples_per_gpu=8,
+    workers_per_gpu=1)
 
 checkpoint_config = dict(interval=5)
 evaluation = dict(interval=5)
@@ -34,11 +34,11 @@ model = dict(
             gamma=2.0,
             alpha=0.25,
             loss_weight=1.0),
-        loss_bbox=dict(type='Sph2PobL1Loss', loss_weight=1.0)),
+        loss_bbox=dict(type='KentLoss', loss_weight=1.0)),
     train_cfg=dict(
         assigner=dict(
             iou_calculator=dict(
-                backend='sph2pob_efficient_iou')),),
+                backend='kld_iou')),),
     test_cfg=dict(
         nms=dict(iou_threshold=0.5),
         iou_calculator='naive_iou',
