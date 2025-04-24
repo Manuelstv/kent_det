@@ -121,7 +121,36 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
     with torch.no_grad():
         alpha = v / (1 - jsd_iou + v + eps)
 
-    kld_loss = 1 - jsd_iou + alpha*v
+    w_true = torch.deg2rad(y_true[:, 4])
+    h_true = torch.deg2rad(y_true[:, 5])
+    w_pred = torch.deg2rad(y_pred[:, 4])
+    h_pred = torch.deg2rad(y_pred[:, 5])
+    cx_pred, cy_pred = y_pred[:, 0], y_pred[:, 1]
+    cx_true, cy_true = y_true[:, 0], y_true[:, 1]
+
+    rho_squared = (cx_pred - cx_true)**2 + (cy_pred - cy_true)**2  # ρ²
+
+    pred_left = cx_pred - w_pred / 2
+    pred_right = cx_pred + w_pred / 2
+    pred_bottom = cy_pred - h_pred / 2
+    pred_top = cy_pred + h_pred / 2
+
+    true_left = cx_true - w_true / 2
+    true_right = cx_true + w_true / 2
+    true_bottom = cy_true - h_true / 2
+    true_top = cy_true + h_true / 2
+
+    enclose_left = torch.minimum(pred_left, true_left)
+    enclose_right = torch.maximum(pred_right, true_right)
+    enclose_bottom = torch.minimum(pred_bottom, true_bottom)
+    enclose_top = torch.maximum(pred_top, true_top)
+    c_squared = (enclose_right - enclose_left)**2 + (enclose_top - enclose_bottom)**2
+
+    epsilon = 1e-7
+    distance_penalty = rho_squared / (c_squared + epsilon)
+
+
+    kld_loss = 1 - jsd_iou + alpha*v + distance_penalty
     return kld_loss
 
 
