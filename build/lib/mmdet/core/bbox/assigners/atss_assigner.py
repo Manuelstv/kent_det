@@ -8,6 +8,33 @@ from ..iou_calculators import build_iou_calculator
 from .assign_result import AssignResult
 from .base_assigner import BaseAssigner
 
+def haversine_distance_vectorized(θ1, φ1, θ2, φ2, r=1.0):
+    """
+    Vectorized Haversine distance between point sets.
+    Args:
+        θ1, φ1: Longitude/latitude of point set 1 (radians), shape [N] or [N,1]
+        θ2, φ2: Longitude/latitude of point set 2 (radians), shape [M] or [1,M]
+        r: Sphere radius (set to 1 for angular distance)
+    Returns:
+        Distance matrix of shape [N,M]
+    """
+    # Expand dimensions for broadcasting
+    θ1 = θ1.unsqueeze(1)  # [N,1]
+    φ1 = φ1.unsqueeze(1)  # [N,1]
+    θ2 = θ2.unsqueeze(0)  # [1,M]
+    φ2 = φ2.unsqueeze(0)  # [1,M]
+    
+    # Handle longitude periodicity (shortest path)
+    Δθ = torch.remainder((θ1 - θ2 + torch.pi), 2 * torch.pi) - torch.pi
+    
+    # Haversine formula
+    a = (
+        torch.sin((φ1 - φ2)/2)**2 
+        + torch.cos(φ1) * torch.cos(φ2) * torch.sin(Δθ/2)**2
+    )
+    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
+    return r * c
+
 
 @BBOX_ASSIGNERS.register_module()
 class ATSSAssigner(BaseAssigner):
@@ -145,16 +172,19 @@ class ATSSAssigner(BaseAssigner):
                 num_gt, assigned_gt_inds, max_overlaps, labels=assigned_labels)
 
         # compute center distance between all bbox and gt
-        gt_cx = (gt_bboxes[:, 0] + gt_bboxes[:, 2]) / 2.0
-        gt_cy = (gt_bboxes[:, 1] + gt_bboxes[:, 3]) / 2.0
-        gt_points = torch.stack((gt_cx, gt_cy), dim=1)
+        gt_lons = gt_bboxes[:, 0]  # [num_gts]
+        gt_lats = gt_bboxes[:, 1]  # [num_gts]
 
-        bboxes_cx = (bboxes[:, 0] + bboxes[:, 2]) / 2.0
-        bboxes_cy = (bboxes[:, 1] + bboxes[:, 3]) / 2.0
-        bboxes_points = torch.stack((bboxes_cx, bboxes_cy), dim=1)
+        bbox_lons = bboxes[:, 0]    # [num_bboxes]
+        bbox_lats = bboxes[:, 1]    # [num_bboxes]
 
-        distances = (bboxes_points[:, None, :] -
-                     gt_points[None, :, :]).pow(2).sum(-1).sqrt()
+        # Compute all pairwise distances [num_bboxes, num_gts]
+        distances = haversine_distance_vectorized(
+            θ1=bbox_lons, 
+            φ1=bbox_lats,
+            θ2=gt_lons,
+            φ2=gt_lats
+        )
 
         if (self.ignore_iof_thr > 0 and gt_bboxes_ignore is not None
                 and gt_bboxes_ignore.numel() > 0 and bboxes.numel() > 0):
@@ -201,10 +231,30 @@ class ATSSAssigner(BaseAssigner):
 
         # calculate the left, top, right, bottom distance between positive
         # bbox center and gt side
-        l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 0]
-        t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 1]
-        r_ = gt_bboxes[:, 2] - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)
-        b_ = gt_bboxes[:, 3] - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)
+        #l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 0]
+        #t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_bboxes[:, 1]
+        #r_ = gt_bboxes[:, 2] - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)
+        #b_ = gt_bboxes[:, 3] - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)
+
+
+        gt_cx = gt_bboxes[:, 0]  # center x
+        gt_cy = gt_bboxes[:, 1]  # center y
+        gt_w = gt_bboxes[:, 2]   # width
+        gt_h = gt_bboxes[:, 3]   # height
+
+        # Convert (x, y, w, h) to (x1, y1, x2, y2) format
+        gt_x1 = gt_cx - gt_w / 2  # left
+        gt_y1 = gt_cy - gt_h / 2  # top
+        gt_x2 = gt_cx + gt_w / 2  # right
+        gt_y2 = gt_cy + gt_h / 2  # bottom
+
+        # Calculate distances from predicted bbox centers to gt sides
+        l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_x1  # distance to left edge
+        t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_y1  # distance to top edge
+        r_ = gt_x2 - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)  # distance to right edge
+        b_ = gt_y2 - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)  # distance to bottom edge
+
+        # Check if the predicted center is inside the gt bbox (with a small margin 0.01)
         is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
 
         is_pos = is_pos & is_in_gts
