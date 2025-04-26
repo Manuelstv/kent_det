@@ -254,27 +254,27 @@ class ATSSAssigner(BaseAssigner):
         is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
         '''
         
-        gt_cx = gt_bboxes[:, 0]  # center x
-        gt_cy = gt_bboxes[:, 1]  # center y
-        gt_w = gt_bboxes[:, 2]   # width
-        gt_h = gt_bboxes[:, 3]   # height
+        #gt_cx = gt_bboxes[:, 0]  # center x
+        #gt_cy = gt_bboxes[:, 1]  # center y
+        #gt_w = gt_bboxes[:, 2]   # width
+        #gt_h = gt_bboxes[:, 3]   # height
 
         # Convert (x, y, w, h) to (x1, y1, x2, y2) format
-        gt_x1 = gt_cx - gt_w / 2  # left
-        gt_y1 = gt_cy - gt_h / 2  # top
-        gt_x2 = gt_cx + gt_w / 2  # right
-        gt_y2 = gt_cy + gt_h / 2  # bottom
+        #gt_x1 = gt_cx - gt_w / 2  # left
+        #gt_y1 = gt_cy - gt_h / 2  # top
+        #gt_x2 = gt_cx + gt_w / 2  # right
+        #gt_y2 = gt_cy + gt_h / 2  # bottom
 
         # Calculate distances from predicted bbox centers to gt sides
-        l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_x1  # distance to left edge
-        t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_y1  # distance to top edge
-        r_ = gt_x2 - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)  # distance to right edge
-        b_ = gt_y2 - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)  # distance to bottom edge
+        #l_ = ep_bboxes_cx[candidate_idxs].view(-1, num_gt) - gt_x1  # distance to left edge
+        #t_ = ep_bboxes_cy[candidate_idxs].view(-1, num_gt) - gt_y1  # distance to top edge
+        #r_ = gt_x2 - ep_bboxes_cx[candidate_idxs].view(-1, num_gt)  # distance to right edge
+        #b_ = gt_y2 - ep_bboxes_cy[candidate_idxs].view(-1, num_gt)  # distance to bottom edge
 
         # Check if the predicted center is inside the gt bbox (with a small margin 0.01)
-        is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
+        #is_in_gts = torch.stack([l_, t_, r_, b_], dim=1).min(dim=1)[0] > 0.01
 
-        is_pos = is_pos & is_in_gts
+        #is_pos = is_pos & is_in_gts
 
         # if an anchor box is assigned to multiple gts,
         # the one with the highest IoU will be selected.

@@ -1,5 +1,5 @@
 # optimizer
-optimizer = dict(type='Adam', lr=1e-4, weight_decay=0.0001)
+optimizer = dict(type='Adam', lr=1e-3, weight_decay=0.0001)
 
 optimizer_config = dict(grad_clip=None)
 # learning policy
