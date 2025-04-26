@@ -7,7 +7,6 @@ import numpy as np
 import math
 
 def bfov_to_kent(annotations, epsilon=1e-6):
-    #why?
     if annotations.ndim == 1:
         annotations = annotations.unsqueeze(0)
 
@@ -35,61 +34,10 @@ class SphBox2KentTransform:
         self.transform = _sph_box2kent_transform
     def __call__(self, boxes):
         return self.transform(boxes)
-    
+
 def _sph_box2kent_transform(boxes):
     return bfov_to_kent(boxes)
 
-'''def debug_negative_kld(kent_pred: torch.Tensor, kent_target: torch.Tensor, kld: torch.Tensor):
-    """
-    Debug function to identify which Kent distribution parameters lead to negative KLD values.
-    
-    Args:
-        kent_pred (torch.Tensor): Predicted Kent distribution parameters (eta, alpha, psi, kappa, beta)
-        kent_target (torch.Tensor): Target Kent distribution parameters (eta, alpha, psi, kappa, beta)
-        kld (torch.Tensor): The calculated KLD matrix
-    """
-    # Find indices where KLD is negative
-    negative_indices = torch.where(kld < 0)
-    
-    if len(negative_indices[0]) == 0:
-        print("No negative KLD values found.")
-        return
-    
-    print(f"\nFound {len(negative_indices[0])} negative KLD values")
-    print("\nDetailed analysis of negative KLD cases:")
-    
-    for i, j in zip(negative_indices[0], negative_indices[1]):
-        kld_value = kld[i, j]
-        
-        # Get corresponding parameters
-        pred_params = kent_pred[i]
-        target_params = kent_target[j]
-        
-        print(f"\nKLD Value: {kld_value:.6f}")
-        print("\nPredicted parameters:")
-        print(f"  eta: {pred_params[0]:.6f}")
-        print(f"  alpha: {pred_params[1]:.6f}")
-        print(f"  psi: {pred_params[2]:.6f}")
-        print(f"  kappa: {pred_params[3]:.6f}")
-        print(f"  beta: {pred_params[4]:.6f}")
-        
-        print("\nTarget parameters:")
-        print(f"  eta: {target_params[0]:.6f}")
-        print(f"  alpha: {target_params[1]:.6f}")
-        print(f"  psi: {target_params[2]:.6f}")
-        print(f"  kappa: {target_params[3]:.6f}")
-        print(f"  beta: {target_params[4]:.6f}")
-        
-        # Calculate parameter differences
-        diff = pred_params - target_params
-        print("\nParameter differences (pred - target):")
-        print(f"  eta diff: {diff[0]:.6f}")
-        print(f"  alpha diff: {diff[1]:.6f}")
-        print(f"  psi diff: {diff[2]:.6f}")
-        print(f"  kappa diff: {diff[3]:.6f}")
-        print(f"  beta diff: {diff[4]:.6f}")
-        print("-" * 50)
-'''
 def jiter_spherical_bboxes(bboxes1, bboxes2):
     eps = 1e-4 * 1.2345678
     similar_mask = (torch.abs(bboxes1 - bboxes2) < eps).any(dim=1)
@@ -107,42 +55,6 @@ def jiter_spherical_bboxes(bboxes1, bboxes2):
         torch.clamp_(bboxes2[:, 4], -2*pi+2*eps, max=2*pi-eps)
 
     return bboxes1, bboxes2
-
-def normalized_l1_loss(y_true, y_pred, scale_factor=30.0):
-    """
-    Compute normalized L1 loss for 5-tuple where:
-    - First 3 values range from -pi to pi
-    - Last 2 values range from 0 to inf
-    
-    Args:
-        y_pred: torch.Tensor of shape (n, 5) or (5,) - predicted values
-        y_true: torch.Tensor of shape (n, 5) or (5,) - true values
-        scale_factor: float - scaling factor for sigmoid normalization
-    
-    Returns:
-        torch.Tensor: normalized L1 loss
-    """
-    # Ensure inputs are 2D
-    if y_pred.dim() == 1:
-        y_pred = y_pred.unsqueeze(0)
-    if y_true.dim() == 1:
-        y_true = y_true.unsqueeze(0)
-        
-    #print(y_pred, y_true)
-    
-    #y_pred, y_true = jiter_spherical_bboxes(y_pred, y_true)
-    
-    mask = (y_true != 0).any(dim=1)
-    if not mask.any():
-        return torch.tensor(0.0, device=y_pred.device)
-    
-    #pdb.set_trace()
-    pred = torch.stack([y_pred[mask, 0]/360, y_pred[mask, 1]/180, y_pred[mask, 2]/180, y_pred[mask, 3]/180], dim=1)
-    true = torch.stack([y_true[mask, 0]/360, y_true[mask, 1]/180, y_true[mask, 2]/180, y_true[mask, 3]/180], dim=1)
-
-    # Compute L1 loss for the stacked tensors
-    l1_loss = torch.mean(torch.abs(pred - true))  # Calculate the mean L1 loss
-    return l1_loss  # Return the computed L1 loss
 
 def check_nan_inf(tensor: torch.Tensor, name: str):
     """
@@ -326,31 +238,10 @@ def kld_diagonal(kappa_a: torch.Tensor, beta_a: torch.Tensor, gamma_a1: torch.Te
     check_nan_inf(kld, "kld")
     return kld
 
-def clip_kent_parameters(kappa: torch.Tensor, beta: torch.Tensor, max_kappa: float = 1e13) -> torch.Tensor:
-    """
-    Clip kappa and beta to reasonable ranges to avoid numerical instability.
-    """
-    #pdb.set_trace()
-    #kappa = torch.clamp(kappa, max=max_kappa)
-    beta = torch.clamp(beta, max=(kappa / 2.2) - 1e-4)
-    return kappa, beta
-
-def validate_kent_parameters(kent_params: torch.Tensor) -> torch.Tensor:
-    """
-    Validate Kent parameters and enforce constraints.
-    """
-    eta, alpha, kappa, beta = kent_params[:, 0], kent_params[:, 1], kent_params[:, 2], kent_params[:, 3]
-    kappa, beta = clip_kent_parameters(kappa, beta)
-    #beta = enforce_kent_constraints(kappa, beta)
-    return torch.stack([eta, alpha, kappa, beta], dim=1)
-
 def get_kld(kent_pred: torch.Tensor, kent_target: torch.Tensor) -> torch.Tensor:
     """
     Calculate the KLD between predicted and target Kent distributions.
     """
-    # Validate and enforce constraints on parameters
-    #kent_target = validate_kent_parameters(kent_target)
-    #kent_pred = validate_kent_parameters(kent_pred)
 
     eta_a, alpha_a, kappa_a, beta_a = kent_target[:, 0], kent_target[:, 1], kent_target[:, 2], kent_target[:, 3]
     eta_b, alpha_b, kappa_b, beta_b = kent_pred[:, 0], kent_pred[:, 1], kent_pred[:, 2], kent_pred[:, 3]
@@ -375,7 +266,6 @@ def get_kld(kent_pred: torch.Tensor, kent_target: torch.Tensor) -> torch.Tensor:
     return kld
 
 def kld_kent_iou(y_pred, y_true, eps = 1e-6):
-    # Ensure inputs are 2D[]
     if y_pred.dim() == 1:
         y_pred = y_pred.unsqueeze(0)
     if y_true.dim() == 1:
@@ -392,7 +282,7 @@ def kld_kent_iou(y_pred, y_true, eps = 1e-6):
 
     jsd = (kld_pt+kld_tp)/2
 
-    const = 1.  
+    const = 1.
     kld_loss = 1 / (const + jsd)
 
     return kld_loss

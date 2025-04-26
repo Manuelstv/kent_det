@@ -6,7 +6,7 @@ _base_ = [
     '../_base_/models/sph_retinanet_r50_fpn.py',
 ]
 
-optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=10, norm_type=2))
+optimizer_config=dict(_delete_=True, grad_clip=dict(max_norm=5, norm_type=2))
 
 #load_from = 'work_dirs/kent_retinanet/best_bbox_mAP_50_epoch_55.pth'
 

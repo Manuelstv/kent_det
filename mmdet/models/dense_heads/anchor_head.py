@@ -246,7 +246,7 @@ class AnchorHead(BaseDenseHead, BBoxTestMixin):
 
 
 
-        num_level_bboxes = [73728,18432, 4608, 1152, 288]
+        num_level_bboxes = [18432, 4608, 1152, 288, 72]
         assign_result = self.assigner.assign(
             bboxes = anchors, 
             num_level_bboxes = num_level_bboxes,
