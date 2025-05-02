@@ -106,9 +106,10 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
     kld_pt = torch.clamp(kld_pt, min =0)
     kld_tp = torch.clamp(kld_tp, min =0)
 
-    jsd = (kld_pt+kld_tp)/2
+    jsd = (kld_pt+kld_tp)
     const = 1.
-    jsd_iou = 1 / (const + jsd)
+    #jsd_iou = 1 / (const + jsd)
+    jsd_iou = torch.exp(-1*jsd)
 
     w2, h2 = y_pred[:,4], y_pred[:,5]
     w1, h1 = y_true[:,4], y_true[:,5]
