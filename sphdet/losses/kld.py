@@ -7,44 +7,23 @@ from sphdet.losses.kent_kld import get_kld, jiter_spherical_bboxes
 import numpy as np
 import math
 
-def haversine_distance(theta1_deg, phi1_deg, theta2_deg, phi2_deg, r=1.0):
+def haversine_distance(theta1_deg, phi1_deg, theta2_deg, phi2_deg):
     """
-    Vectorized Haversine distance between point sets with inputs in degrees.
-
-    Args:
-        theta1_deg, phi1_deg: Longitude [0,360] and latitude [0,180] of point set 1 (degrees), shape [N] or [N,1]
-        theta2_deg, phi2_deg: Longitude [0,360] and latitude [0,180] of point set 2 (degrees), shape [M] or [1,M]
-        r: Sphere radius (set to 1 for angular distance)
-
-    Returns:
-        Distance matrix of shape [N,M]
+    Compute distances between corresponding points only (not pairwise matrix).
+    All inputs should have the same shape [N].
     """
-    # Convert degrees to radians and adjust latitude range from [0,180] to [-90,90]
-    theta1 = torch.deg2rad(theta1_deg -180)
-    phi1 = torch.deg2rad(phi1_deg - 90)  # Shift [0,180] to [-90,90]
+    theta1 = theta1_deg - torch.pi/2
+    phi1 = phi1_deg - torch.pi
+    theta2 = theta2_deg - torch.pi/2
+    phi2 = phi2_deg - torch.pi
 
-    theta2 = torch.deg2rad(theta2_deg - 180)
-    phi2 = torch.deg2rad(phi2_deg - 90)  # Shift [0,180] to [-90,90]
+    delta_theta = theta1 - theta2
+    delta_phi = phi1 - phi2
 
-    # Expand dimensions for broadcasting
-    theta1 = theta1.unsqueeze(1)  # [N,1]
-    phi1 = phi1.unsqueeze(1)      # [N,1]
-    theta2 = theta2.unsqueeze(0)  # [1,M]
-    phi2 = phi2.unsqueeze(0)      # [1,M]
-
-    # Handle longitude periodicity (wraps within [−π, π])
-    delta_theta = torch.remainder(theta1 - theta2 + torch.pi, 2 * torch.pi) - torch.pi
-
-    # Haversine formula
-    a = (
-        torch.sin((phi1 - phi2) / 2)**2
-        + torch.cos(phi1) * torch.cos(phi2) * torch.sin(delta_theta / 2)**2
-    )
-    c = 2 * torch.atan2(torch.sqrt(a), torch.sqrt(1 - a))
-    return r * c
+    a = torch.sin(delta_phi/2)**2 + torch.cos(phi1) * torch.cos(phi2) * torch.sin(delta_theta/2)**2
+    return 2 * torch.atan(torch.sqrt(a/(1-a)))
 
 def bfov_to_kent(annotations, epsilon=1e-6):
-    #why?
     if annotations.ndim == 1:
         annotations = annotations.unsqueeze(0)
 
@@ -54,13 +33,16 @@ def bfov_to_kent(annotations, epsilon=1e-6):
     fov_theta = annotations[:, 2]
     fov_phi = annotations[:, 3]
 
-    w = torch.sin(alpha)*torch.deg2rad(fov_theta)
-    h = torch.deg2rad(fov_phi)
+    width = torch.sin(alpha) * 2 * torch.tan(torch.deg2rad(fov_theta)/2)
+    height = 2 * torch.tan(torch.deg2rad(fov_phi)/2)
 
-    varphi = (h**2) / 12 + epsilon
-    vartheta = (w**2) / 12 + epsilon
+    #w = torch.sin(alpha)*torch.deg2rad(fov_theta)
+    #h = torch.deg2rad(fov_phi)
 
-    kappa = 0.5 * (1 / varphi + 1 / vartheta)
+    varphi = (height**2) / 12 + epsilon
+    vartheta = (width**2) / 12 + epsilon
+
+    kappa = 0.5 * (1 / varphi + 1 / vartheta) + 0.01
     beta = torch.abs(0.25 * (1 / vartheta - 1 / varphi))
 
     kent_dist = torch.stack([eta, alpha, kappa, beta, fov_theta, fov_phi], dim=1)
@@ -133,8 +115,8 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
         y_true = y_true.unsqueeze(0)
 
     #kld part. really needs to improve variable names
-    pred = y_pred[:, :4].double()
-    true = y_true[:, :4].double()
+    pred = y_pred.double()
+    true = y_true.double()
 
     kld_pt = get_kld(pred, true)
     kld_tp = get_kld(true, pred)
@@ -144,8 +126,8 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
 
     jsd = (kld_pt+kld_tp)
     const = 1.
-    #jsd_iou = 1 / (const + jsd**2)
-    jsd_iou = torch.exp(-1*jsd)
+    jsd_iou = 1 / (const + jsd**2)
+    #jsd_iou = torch.exp(-1*jsd)
 
     w2, h2 = y_pred[:,4], y_pred[:,5]
     w1, h1 = y_true[:,4], y_true[:,5]
@@ -158,41 +140,34 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
     with torch.no_grad():
         alpha = v / (1 - jsd_iou + v + eps)
 
-    lat_true, lon_true = 360*y_true[:, 0]/(2*np.pi), 180*(y_true[:, 1])/(np.pi)
-    lat_pred, lon_pred = 360*y_pred[:, 0]/(2*np.pi), 180*(y_pred[:, 1])/(np.pi)
-    c_center = haversine_distance(lat_true, lon_true, lat_pred, lon_pred, r=1.0)
+    c_center = torch.clamp(haversine_distance(true[:, 0], true[:, 1], pred[:, 0], pred[:, 1]), min =0, max = torch.pi)
     rho_squared = c_center**2
 
-    pdb.set_trace()
+    w_true = torch.pi*(true[:, 4])/180
+    h_true = torch.pi*(true[:, 5])/180
+    w_pred = torch.pi*(pred[:, 4])/180
+    h_pred = torch.pi*(pred[:, 5])/180
 
-    w_true = (y_true[:, 4])
-    h_true = (y_true[:, 5])
-    w_pred = (y_pred[:, 4])
-    h_pred = (y_pred[:, 5])
+    true_bottom = true[:, 1] - h_true/2
+    true_top = true[:, 1] + h_true/2
+    true_left = true[:, 0] - w_true/2
+    true_right = true[:, 0] + w_true/2
 
-    true_bottom = lat_true - h_true/2
-    true_top = lat_true + h_true/2
-    true_left = lon_true - w_true/2
-    true_right = lon_true + w_true/2
-
-    pred_bottom = lat_pred - h_pred/2
-    pred_top = lat_pred + h_pred/2
-    pred_left = lon_pred - w_pred/2
-    pred_right = lon_pred + w_pred/2
+    pred_bottom = pred[:, 1] - h_pred/2
+    pred_top = pred[:, 1] + h_pred/2
+    pred_left = pred[:, 0] - w_pred/2
+    pred_right = pred[:, 0] + w_pred/2
 
     enclose_bottom = torch.minimum(pred_bottom, true_bottom)
     enclose_top = torch.maximum(pred_top, true_top)
     enclose_left = torch.minimum(pred_left, true_left)
     enclose_right = torch.maximum(pred_right, true_right)
 
-    c_encl = haversine_distance(enclose_bottom, enclose_left, enclose_top, enclose_right , r=1.0)
+    c_encl = haversine_distance(enclose_left, enclose_bottom, enclose_right, enclose_top)
     c_squared = c_encl**2
 
-    epsilon = 1e-7
+    epsilon = 1e-6
     distance_penalty = rho_squared / (c_squared + epsilon)
-
-    pdb.set_trace()
-
 
     kld_loss = 1 - jsd_iou + alpha*v + distance_penalty
     return kld_loss
