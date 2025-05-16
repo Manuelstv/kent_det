@@ -126,6 +126,7 @@ def kent_loss(y_pred, y_true, eps = 1e-6):
 
     jsd = (kld_pt+kld_tp)
     const = 1.
+
     jsd_iou = 1 / (const + jsd**2)
     #jsd_iou = torch.exp(-1*jsd)
 
